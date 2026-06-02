@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CONNECT FOUR — Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#080a14;
+    --cabinet-1:#1f49c7;
+    --cabinet-2:#102a7a;
+    --cabinet-edge:#0a1c5c;
+    --socket:#070a15;
+    --you-1:#ffd24d;
+    --you-2:#ff9500;
+    --cpu-1:#ff4d7d;
+    --cpu-2:#d11447;
+    --cyan:#3ee6ff;
+    --ink:#f5f2e8;
+    --muted:#8a93b8;
+    --gap: clamp(7px, 1.6vmin, 13px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:'Outfit',sans-serif;
+    background:
+      radial-gradient(120% 90% at 50% -10%, #18215a 0%, rgba(24,33,90,0) 55%),
+      radial-gradient(80% 70% at 50% 120%, #2a1140 0%, rgba(42,17,64,0) 60%),
+      var(--bg);
+    color:var(--ink);
+    min-height:100%;
+    display:flex;flex-direction:column;align-items:center;
+    padding:24px 16px 40px;
+    overflow-x:hidden;
+    position:relative;
+  }
+  /* subtle dotted grain */
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+    background-image:radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size:3px 3px;mix-blend-mode:overlay;opacity:.6;
+  }
+
+  header{text-align:center;margin-bottom:14px;z-index:2;}
+  h1{
+    font-family:'Bungee',sans-serif;
+    font-size:clamp(30px,7vw,58px);
+    line-height:.95;letter-spacing:1px;
+    color:var(--ink);
+    text-shadow:
+      0 0 1px var(--cyan),
+      0 4px 0 #06245e,
+      0 6px 18px rgba(62,230,255,.25);
+  }
+  h1 .four{color:var(--you-1);text-shadow:0 0 18px rgba(255,180,40,.55),0 4px 0 #7a3b00;}
+  .tag{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-top:8px;}
+
+  /* scoreboard */
+  .score{
+    display:flex;gap:10px;margin:6px 0 16px;align-items:stretch;z-index:2;
+  }
+  .chip{
+    background:linear-gradient(180deg,#121734,#0c1026);
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:14px;padding:9px 16px;min-width:84px;text-align:center;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 8px 20px rgba(0,0,0,.4);
+  }
+  .chip .lab{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);}
+  .chip .num{font-family:'Space Mono',monospace;font-size:26px;line-height:1.1;margin-top:2px;}
+  .chip.you .num{color:var(--you-1);}
+  .chip.cpu .num{color:var(--cpu-1);}
+  .chip.draw .num{color:var(--cyan);}
+
+  /* board */
+  .stage{position:relative;z-index:2;}
+  .board{
+    --cell: clamp(38px, 11.5vmin, 78px);
+    display:grid;
+    grid-template-columns:repeat(7, var(--cell));
+    grid-auto-rows:var(--cell);
+    gap:var(--gap);
+    padding:var(--gap);
+    border-radius:24px;
+    background:
+      linear-gradient(160deg, var(--cabinet-1), var(--cabinet-2) 70%);
+    border:2px solid rgba(120,160,255,.25);
+    box-shadow:
+      0 0 0 6px var(--cabinet-edge),
+      0 30px 60px -15px rgba(0,0,0,.7),
+      inset 0 2px 0 rgba(255,255,255,.15),
+      inset 0 -10px 30px rgba(0,0,0,.45);
+    position:relative;
+  }
+  .board::before{ /* glossy sheen */
+    content:"";position:absolute;inset:0;border-radius:22px;pointer-events:none;
+    background:linear-gradient(150deg, rgba(255,255,255,.14), rgba(255,255,255,0) 40%);
+  }
+  .cell{
+    width:var(--cell);height:var(--cell);border-radius:50%;
+    background:radial-gradient(circle at 38% 32%, #11142a, var(--socket) 72%);
+    box-shadow:
+      inset 0 4px 8px rgba(0,0,0,.85),
+      inset 0 -2px 4px rgba(120,150,255,.18),
+      0 1px 0 rgba(255,255,255,.04);
+    position:relative;overflow:visible;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .disc{
+    width:86%;height:86%;border-radius:50%;position:relative;
+    will-change:transform;
+  }
+  .disc.you{
+    background:radial-gradient(circle at 36% 30%, #fff0b8, var(--you-1) 38%, var(--you-2) 88%);
+    box-shadow:0 0 16px rgba(255,170,40,.45), inset 0 -4px 8px rgba(140,70,0,.55), inset 0 4px 6px rgba(255,255,255,.5);
+  }
+  .disc.cpu{
+    background:radial-gradient(circle at 36% 30%, #ffd0dd, var(--cpu-1) 38%, var(--cpu-2) 88%);
+    box-shadow:0 0 16px rgba(255,60,110,.45), inset 0 -4px 8px rgba(120,0,35,.55), inset 0 4px 6px rgba(255,255,255,.45);
+  }
+  .disc.drop{ animation:drop var(--dropdur,.45s) cubic-bezier(.34,.05,.4,1) ; }
+  @keyframes drop{
+    0%{transform:translateY(var(--from)); }
+    72%{transform:translateY(0);}
+    82%{transform:translateY(-7%);}
+    91%{transform:translateY(0);}
+    96%{transform:translateY(-3%);}
+    100%{transform:translateY(0);}
+  }
+  .disc.win{ animation:wpulse 0.9s ease-in-out infinite; z-index:3;}
+  @keyframes wpulse{
+    0%,100%{transform:scale(1);filter:brightness(1);}
+    50%{transform:scale(1.12);filter:brightness(1.5);}
+  }
+  .cell.win{ box-shadow: inset 0 0 0 3px var(--cyan), 0 0 22px rgba(62,230,255,.6); }
+
+  /* column hover ghost + hit areas */
+  .cols{position:absolute;inset:var(--gap);display:grid;grid-template-columns:repeat(7,1fr);gap:var(--gap);z-index:4;}
+  .col-hit{cursor:pointer;border-radius:14px;position:relative;}
+  .col-hit::after{ /* drop indicator arrow */
+    content:"▾";position:absolute;top:-26px;left:50%;transform:translateX(-50%) translateY(4px);
+    font-size:22px;opacity:0;transition:opacity .15s, transform .15s;color:var(--you-1);
+    text-shadow:0 0 12px rgba(255,180,40,.7);
+  }
+  .board:not(.locked) .col-hit:hover::after{opacity:1;transform:translateX(-50%) translateY(0);}
+  .board:not(.locked) .col-hit:hover{background:rgba(255,255,255,.04);}
+  .board.locked .cols{pointer-events:none;}
+
+  /* status + controls */
+  .status{
+    margin-top:18px;min-height:30px;font-weight:600;font-size:clamp(15px,2.2vw,19px);
+    letter-spacing:.3px;text-align:center;z-index:2;display:flex;align-items:center;gap:10px;
+  }
+  .dot{width:13px;height:13px;border-radius:50%;display:inline-block;box-shadow:0 0 10px currentColor;}
+  .dot.you{background:var(--you-1);color:var(--you-1);}
+  .dot.cpu{background:var(--cpu-1);color:var(--cpu-1);}
+  .thinking .dot.cpu{animation:blink .7s infinite;}
+  @keyframes blink{50%{opacity:.25;}}
+
+  .controls{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;margin-top:18px;z-index:2;}
+  .seg{display:flex;background:#0c1026;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:4px;gap:4px;}
+  .seg button{
+    font-family:'Outfit';font-weight:600;font-size:13px;letter-spacing:.4px;
+    color:var(--muted);background:transparent;border:0;padding:8px 14px;border-radius:9px;cursor:pointer;transition:.15s;
+  }
+  .seg button.active{background:linear-gradient(180deg,#27408f,#1a2f73);color:#fff;box-shadow:0 2px 10px rgba(40,80,200,.4);}
+  .seg button:not(.active):hover{color:#dfe4ff;}
+  .seg .lbl{align-self:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:0 8px 0 4px;color:#5b65a0;}
+
+  .btn{
+    font-family:'Bungee',sans-serif;font-size:14px;letter-spacing:1px;
+    color:#08111a;background:linear-gradient(180deg,var(--cyan),#13b9d8);
+    border:0;padding:13px 22px;border-radius:13px;cursor:pointer;
+    box-shadow:0 6px 0 #0a6f86, 0 12px 24px rgba(62,230,255,.3);transition:.08s;
+  }
+  .btn:active{transform:translateY(4px);box-shadow:0 2px 0 #0a6f86,0 6px 14px rgba(62,230,255,.25);}
+  .btn.ghost{background:#0c1026;color:var(--ink);box-shadow:0 6px 0 #060814,0 10px 20px rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08);}
+  .btn.ghost:active{transform:translateY(4px);box-shadow:0 2px 0 #060814;}
+
+  .hint{font-size:12px;color:var(--muted);margin-top:14px;text-align:center;z-index:2;max-width:520px;line-height:1.5;}
+  kbd{font-family:'Space Mono';background:#11152e;border:1px solid rgba(255,255,255,.1);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-size:11px;color:#cfd6ff;}
+
+  /* hint marker: glowing target over recommended column */
+  .col-hit.suggest::before{
+    content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:80%;aspect-ratio:1;border-radius:50%;
+    border:3px dashed var(--cyan);
+    box-shadow:0 0 18px rgba(62,230,255,.55), inset 0 0 18px rgba(62,230,255,.35);
+    animation:spin 6s linear infinite, glow 1.4s ease-in-out infinite;
+    pointer-events:none;
+  }
+  .col-hit.suggest::after{
+    content:"★ BEST";opacity:1;transform:translateX(-50%) translateY(0);
+    top:-30px;font-family:'Space Mono';font-size:11px;letter-spacing:1px;font-weight:700;
+    color:var(--cyan);text-shadow:0 0 12px rgba(62,230,255,.8);
+  }
+  @keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg);}}
+  @keyframes glow{50%{box-shadow:0 0 26px rgba(62,230,255,.85), inset 0 0 22px rgba(62,230,255,.5);}}
+
+  .analysis{
+    margin-top:12px;min-height:20px;z-index:2;text-align:center;
+    font-family:'Space Mono';font-size:13px;letter-spacing:.4px;color:var(--cyan);
+    opacity:0;transition:opacity .25s;
+  }
+  .analysis.show{opacity:1;}
+  .analysis .verdict{font-weight:700;}
+
+  @media (max-width:480px){
+    .controls{gap:8px;}
+    .seg .lbl{display:none;}
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>CONNECT&nbsp;<span class="four">FOUR</span></h1>
+    <div class="tag">You · vs · The Machine</div>
+  </header>
+
+  <div class="score">
+    <div class="chip you"><div class="lab">You</div><div class="num" id="scoreYou">0</div></div>
+    <div class="chip draw"><div class="lab">Draws</div><div class="num" id="scoreDraw">0</div></div>
+    <div class="chip cpu"><div class="lab">CPU</div><div class="num" id="scoreCpu">0</div></div>
+  </div>
+
+  <div class="stage">
+    <div class="board" id="board" aria-label="Connect Four board">
+      <div class="cols" id="cols"></div>
+    </div>
+  </div>
+
+  <div class="status" id="status"><span class="dot you"></span> Your move — drop a disc</div>
+
+  <div class="analysis" id="analysis"></div>
+
+  <div class="controls">
+    <div class="seg" id="difficulty">
+      <span class="lbl">Level</span>
+      <button data-diff="easy">Easy</button>
+      <button data-diff="medium">Medium</button>
+      <button data-diff="advanced" class="active">Advanced</button>
+    </div>
+    <div class="seg" id="firstmove">
+      <span class="lbl">First</span>
+      <button data-first="you" class="active">You</button>
+      <button data-first="cpu">CPU</button>
+    </div>
+    <div class="seg" id="hinttoggle">
+      <span class="lbl">Hint</span>
+      <button data-hint="off" class="active">Off</button>
+      <button data-hint="on">On</button>
+    </div>
+    <button class="btn" id="newgame">New Game</button>
+    <button class="btn ghost" id="resetScore">Reset Score</button>
+  </div>
+
+  <p class="hint">Click a column or press <kbd>1</kbd>–<kbd>7</kbd> to drop. Flip <strong>Hint</strong> on and a glowing ring marks the engine's recommended "optimal" move on each of your turns, with a one-line read on the position. The CPU itself uses negamax with alpha&#8209;beta pruning — it always grabs a win and never ignores a threat, but plays with a touch of imperfection so no two games are alike.</p>
+
+<script>
+(() => {
+  "use strict";
+  const COLS = 7, ROWS = 6;
+  const YOU = 1, CPU = 2;
+  const ORDER = [3, 2, 4, 1, 5, 0, 6]; // center-out for better pruning
+  const WIN_SCORE = 100000;
+
+  // ---- precompute every 4-in-a-row window (engine idx = c*6 + rBottom) ----
+  const idx = (c, r) => c * ROWS + r;
+  const WINDOWS = [];
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 4; c++) WINDOWS.push([0,1,2,3].map(k => idx(c+k, r)));       // horizontal
+  for (let c = 0; c < 7; c++) for (let r = 0; r < 3; r++) WINDOWS.push([0,1,2,3].map(k => idx(c, r+k)));       // vertical
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 3; r++) WINDOWS.push([0,1,2,3].map(k => idx(c+k, r+k)));     // diag up-right
+  for (let c = 0; c < 4; c++) for (let r = 3; r < 6; r++) WINDOWS.push([0,1,2,3].map(k => idx(c+k, r-k)));     // diag up-left
+
+  // ---------- game state (visible grid, row 0 = TOP) ----------
+  let grid, current, gameOver, busy;
+  const score = { you: 0, cpu: 0, draw: 0 };
+  let difficulty = "advanced";
+  let firstPlayer = YOU;
+  let hintOn = false;
+  const HINT_DEPTH = 9; // deep, near-perfect search for the recommendation
+
+  // ---------- DOM ----------
+  const boardEl  = document.getElementById("board");
+  const colsEl   = document.getElementById("cols");
+  const statusEl = document.getElementById("status");
+  const analysisEl = document.getElementById("analysis");
+  const cellEls  = []; // cellEls[r][c]
+
+  function buildBoard() {
+    // build cells (top to bottom)
+    for (let r = 0; r < ROWS; r++) {
+      cellEls[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        boardEl.appendChild(cell);
+        cellEls[r][c] = cell;
+      }
+    }
+    // clickable column overlays
+    for (let c = 0; c < COLS; c++) {
+      const hit = document.createElement("div");
+      hit.className = "col-hit";
+      hit.dataset.col = c;
+      hit.addEventListener("click", () => humanMove(c));
+      colsEl.appendChild(hit);
+    }
+  }
+
+  function newGame() {
+    grid = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+    gameOver = false; busy = false;
+    // clear discs + win styling
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      cellEls[r][c].innerHTML = "";
+      cellEls[r][c].classList.remove("win");
+    }
+    current = firstPlayer;
+    boardEl.classList.remove("locked");
+    clearHint();
+    if (current === YOU) {
+      setStatus(YOU, "Your move — drop a disc");
+      maybeShowHint();
+    } else {
+      setStatus(CPU, "CPU moves first…", true);
+      lock(true);
+      cpuTurn();
+    }
+  }
+
+  function setStatus(player, text, thinking = false) {
+    const dot = player === YOU ? "you" : "cpu";
+    statusEl.className = "status" + (thinking ? " thinking" : "");
+    statusEl.innerHTML = `<span class="dot ${dot}"></span> ${text}`;
+  }
+  function lock(v) { busy = v; boardEl.classList.toggle("locked", v); }
+
+  // lowest empty row (largest r index that's empty) in a column of the visible grid
+  function dropRow(c) {
+    for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === 0) return r;
+    return -1;
+  }
+
+  function humanMove(c) {
+    if (busy || gameOver || current !== YOU) return;
+    if (dropRow(c) < 0) return;
+    clearHint();
+    placeAndAdvance(c, YOU);
+  }
+
+  function placeAndAdvance(c, player) {
+    const r = dropRow(c);
+    if (r < 0) return;
+    grid[r][c] = player;
+    lock(true);
+    animateDrop(r, c, player, () => {
+      const winCells = findWin(player);
+      if (winCells) return endGame(player, winCells);
+      if (isFull()) return endGame(0, null);
+      // next turn
+      current = player === YOU ? CPU : YOU;
+      if (current === CPU) {
+        setStatus(CPU, "CPU is thinking…", true);
+        cpuTurn();
+      } else {
+        setStatus(YOU, "Your move — drop a disc");
+        lock(false);
+        maybeShowHint();
+      }
+    });
+  }
+
+  function animateDrop(r, c, player, done) {
+    const cell = cellEls[r][c];
+    const disc = document.createElement("div");
+    disc.className = "disc " + (player === YOU ? "you" : "cpu");
+    // distance to fall: from above the top of the board to row r
+    const cellPx = cell.clientWidth;
+    const gapPx = parseFloat(getComputedStyle(boardEl).gap) || 10;
+    const fall = (r + 1) * (cellPx + gapPx);
+    disc.style.setProperty("--from", `-${fall}px`);
+    disc.style.setProperty("--dropdur", Math.min(0.62, 0.26 + r * 0.06) + "s");
+    disc.classList.add("drop");
+    cell.appendChild(disc);
+    let called = false;
+    const finish = () => { if (called) return; called = true; done(); };
+    disc.addEventListener("animationend", finish, { once: true });
+    setTimeout(finish, 720); // safety net
+  }
+
+  function isFull() {
+    for (let c = 0; c < COLS; c++) if (grid[0][c] === 0) return false;
+    return true;
+  }
+
+  // returns array of {r,c} winning cells for `player`, or null
+  function findWin(player) {
+    const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c] !== player) continue;
+        for (const [dr, dc] of dirs) {
+          const cells = [{r,c}];
+          let rr = r + dr, cc = c + dc;
+          while (rr>=0 && rr<ROWS && cc>=0 && cc<COLS && grid[rr][cc] === player) {
+            cells.push({r:rr,c:cc}); rr += dr; cc += dc;
+            if (cells.length === 4) return cells;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function endGame(winner, winCells) {
+    gameOver = true; lock(true);
+    boardEl.classList.add("locked");
+    clearHint();
+    if (winner === YOU) {
+      score.you++; setStatus(YOU, "You win! 🎉");
+    } else if (winner === CPU) {
+      score.cpu++; setStatus(CPU, "CPU wins.");
+    } else {
+      score.draw++; statusEl.className = "status";
+      statusEl.innerHTML = "It's a draw.";
+    }
+    if (winCells) for (const {r,c} of winCells) {
+      cellEls[r][c].classList.add("win");
+      const d = cellEls[r][c].querySelector(".disc");
+      if (d) d.classList.add("win");
+    }
+    renderScore();
+  }
+
+  function renderScore() {
+    document.getElementById("scoreYou").textContent = score.you;
+    document.getElementById("scoreCpu").textContent = score.cpu;
+    document.getElementById("scoreDraw").textContent = score.draw;
+  }
+
+  // ===================== AI ENGINE =====================
+  // Flat bottom-up board for search: b[c*6 + rBottom]; heights[c] = filled count.
+  let b, heights, movesPlayed;
+
+  function buildEngineState() {
+    b = new Int8Array(COLS * ROWS);
+    heights = new Int8Array(COLS);
+    movesPlayed = 0;
+    for (let c = 0; c < COLS; c++) {
+      // visible column from bottom up
+      for (let rTop = ROWS - 1; rTop >= 0; rTop--) {
+        const v = grid[rTop][c];
+        if (v !== 0) {
+          const rBottom = (ROWS - 1) - rTop;
+          b[idx(c, rBottom)] = v;
+          movesPlayed++;
+        }
+      }
+      let h = 0; for (let r = 0; r < ROWS; r++) if (b[idx(c,r)] !== 0) h++;
+      heights[c] = h;
+    }
+  }
+  const canPlay = (c) => heights[c] < ROWS;
+  function play(c, p)  { b[idx(c, heights[c])] = p; heights[c]++; movesPlayed++; }
+  function unmake(c)   { heights[c]--; b[idx(c, heights[c])] = 0; movesPlayed--; }
+
+  function connectedFour(p) {
+    for (let i = 0; i < WINDOWS.length; i++) {
+      const w = WINDOWS[i];
+      if (b[w[0]] === p && b[w[1]] === p && b[w[2]] === p && b[w[3]] === p) return true;
+    }
+    return false;
+  }
+
+  function evalBoard(p) {
+    const opp = p === YOU ? CPU : YOU;
+    let s = 0;
+    // center control
+    for (let r = 0; r < ROWS; r++) {
+      const v = b[idx(3, r)];
+      if (v === p) s += 6; else if (v === opp) s -= 6;
+    }
+    for (let i = 0; i < WINDOWS.length; i++) {
+      const w = WINDOWS[i];
+      let mine = 0, his = 0;
+      for (let k = 0; k < 4; k++) { const v = b[w[k]]; if (v === p) mine++; else if (v === opp) his++; }
+      if (mine && his) continue;            // blocked window, no potential
+      if (mine === 3) s += 50;
+      else if (mine === 2) s += 10;
+      else if (mine === 1) s += 1;
+      else if (his === 3) s -= 55;          // value blocking slightly more
+      else if (his === 2) s -= 10;
+      else if (his === 1) s -= 1;
+    }
+    return s;
+  }
+
+  function negamax(p, depth, alpha, beta) {
+    if (movesPlayed === COLS * ROWS) return 0; // full board, draw
+    const opp = p === YOU ? CPU : YOU;
+    // immediate winning move available?
+    for (const c of ORDER) {
+      if (!canPlay(c)) continue;
+      play(c, p);
+      const won = connectedFour(p);
+      const mp = movesPlayed;
+      unmake(c);
+      if (won) return WIN_SCORE - mp; // faster wins score higher
+    }
+    if (depth === 0) return evalBoard(p);
+    let best = -Infinity;
+    for (const c of ORDER) {
+      if (!canPlay(c)) continue;
+      play(c, p);
+      const sc = -negamax(opp, depth - 1, -beta, -alpha);
+      unmake(c);
+      if (sc > best) best = sc;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+
+  const SETTINGS = {
+    easy:     { depth: 2, margin: 220, temp: 95 },
+    medium:   { depth: 4, margin: 70,  temp: 38 },
+    advanced: { depth: 7, margin: 14,  temp: 8  },
+  };
+
+  function chooseMove() {
+    buildEngineState();
+    const cfg = SETTINGS[difficulty];
+
+    // 1) take an immediate win if there is one
+    for (const c of ORDER) {
+      if (!canPlay(c)) continue;
+      play(c, CPU);
+      const won = connectedFour(CPU);
+      unmake(c);
+      if (won) return c;
+    }
+
+    // 2) score every legal move
+    const scored = [];
+    for (let c = 0; c < COLS; c++) {
+      if (!canPlay(c)) continue;
+      play(c, CPU);
+      const sc = -negamax(YOU, cfg.depth - 1, -Infinity, Infinity);
+      unmake(c);
+      scored.push({ c, sc });
+    }
+    scored.sort((a, b2) => b2.sc - a.sc);
+
+    // 3) prefer moves that don't hand the opponent an immediate win
+    const safe = scored.filter(m => m.sc > -WIN_SCORE + 1000);
+    const pool = safe.length ? safe : scored;
+    const top = pool[0].sc;
+
+    // 4) controlled imperfection: softmax sample among near-best moves
+    const cands = pool.filter(m => m.sc >= top - cfg.margin);
+    if (cands.length === 1) return cands[0].c;
+    let total = 0;
+    const weights = cands.map(m => { const w = Math.exp((m.sc - top) / cfg.temp); total += w; return w; });
+    let pick = Math.random() * total;
+    for (let i = 0; i < cands.length; i++) { pick -= weights[i]; if (pick <= 0) return cands[i].c; }
+    return cands[0].c;
+  }
+
+  // ----- "optimal" play analysis for the human (full strength, no randomness) -----
+  // Returns { col, score, scores: [{c,sc}], forcedBlock }
+  function analyzeHuman() {
+    buildEngineState();
+
+    // immediate win for the human?
+    for (const c of ORDER) {
+      if (!canPlay(c)) continue;
+      play(c, YOU);
+      const won = connectedFour(YOU);
+      unmake(c);
+      if (won) return { col: c, score: WIN_SCORE, scores: null, immediateWin: true };
+    }
+
+    // does the CPU have an immediate winning column we must block?
+    let cpuThreat = -1;
+    for (const c of ORDER) {
+      if (!canPlay(c)) continue;
+      play(c, CPU);
+      const won = connectedFour(CPU);
+      unmake(c);
+      if (won) { cpuThreat = c; break; }
+    }
+
+    const scores = [];
+    for (let c = 0; c < COLS; c++) {
+      if (!canPlay(c)) continue;
+      play(c, YOU);
+      const sc = -negamax(CPU, HINT_DEPTH - 1, -Infinity, Infinity);
+      unmake(c);
+      scores.push({ c, sc });
+    }
+    scores.sort((a, b2) => b2.sc - a.sc);
+    const best = scores[0];
+    return {
+      col: best.c,
+      score: best.sc,
+      scores,
+      forcedBlock: cpuThreat !== -1 && best.c === cpuThreat,
+    };
+  }
+
+  function verdictFor(a) {
+    if (a.immediateWin) return { txt: "drops the winning disc", cls: "great" };
+    const s = a.score;
+    if (s > WIN_SCORE - 2000)  return { txt: "forces a win", cls: "great" };
+    if (a.forcedBlock)         return { txt: "blocks the CPU's winning threat", cls: "warn" };
+    if (s > 45)                return { txt: "strong — clear advantage", cls: "great" };
+    if (s > 10)                return { txt: "good — a slight edge", cls: "ok" };
+    if (s >= -10)              return { txt: "keeps the position even", cls: "ok" };
+    if (s > -45)              return { txt: "defensive — slightly worse", cls: "warn" };
+    if (s > -WIN_SCORE + 2000) return { txt: "best of a tough spot", cls: "warn" };
+    return { txt: "damage control — CPU has a forced win", cls: "warn" };
+  }
+
+  function maybeShowHint() {
+    if (!hintOn || gameOver || current !== YOU) return;
+    const token = ++hintToken;
+    analysisEl.classList.add("show");
+    analysisEl.innerHTML = `<span class="verdict">Analyzing…</span>`;
+    // defer so the "Analyzing…" text paints before the (possibly heavy) search
+    setTimeout(() => {
+      if (token !== hintToken || !hintOn || gameOver || current !== YOU) return;
+      const a = analyzeHuman();
+      if (token !== hintToken) return; // user already moved
+      // place the ring marker over the recommended column
+      const hits = colsEl.children;
+      for (let i = 0; i < hits.length; i++) hits[i].classList.remove("suggest");
+      hits[a.col].classList.add("suggest");
+      const v = verdictFor(a);
+      analysisEl.innerHTML =
+        `<span class="verdict">Best: column ${a.col + 1}</span> — ${v.txt}`;
+    }, 40);
+  }
+
+  function clearHint() {
+    hintToken++;
+    const hits = colsEl.children;
+    for (let i = 0; i < hits.length; i++) hits[i].classList.remove("suggest");
+    analysisEl.classList.remove("show");
+    analysisEl.innerHTML = "";
+  }
+  let hintToken = 0;
+
+  function cpuTurn() {
+    lock(true);
+    // small delay so the "thinking" indicator reads, and search runs off the paint
+    setTimeout(() => {
+      const c = chooseMove();
+      placeAndAdvance(c, CPU);
+    }, 480);
+  }
+
+  // ===================== UI WIRING =====================
+  document.getElementById("difficulty").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-diff]"); if (!btn) return;
+    difficulty = btn.dataset.diff;
+    [...e.currentTarget.querySelectorAll("button")].forEach(b2 => b2.classList.toggle("active", b2 === btn));
+  });
+  document.getElementById("firstmove").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-first]"); if (!btn) return;
+    firstPlayer = btn.dataset.first === "cpu" ? CPU : YOU;
+    [...e.currentTarget.querySelectorAll("button")].forEach(b2 => b2.classList.toggle("active", b2 === btn));
+  });
+  document.getElementById("hinttoggle").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-hint]"); if (!btn) return;
+    hintOn = btn.dataset.hint === "on";
+    [...e.currentTarget.querySelectorAll("button")].forEach(b2 => b2.classList.toggle("active", b2 === btn));
+    if (hintOn) maybeShowHint(); else clearHint();
+  });
+  document.getElementById("newgame").addEventListener("click", newGame);
+  document.getElementById("resetScore").addEventListener("click", () => {
+    score.you = score.cpu = score.draw = 0; renderScore();
+  });
+  window.addEventListener("keydown", (e) => {
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 7) humanMove(n - 1);
+  });
+
+  buildBoard();
+  renderScore();
+  newGame();
+})();
+</script>
+</body>
+</html>
